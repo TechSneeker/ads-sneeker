@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ADSneeker</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div id="app">
+    <div id="titlebar">
+      <div id="titlebar-version">versão 1.0.0</div>
+      <div id="titlebar-controls">
+        <button id="btn-minimize" title="Minimizar">─</button>
+        <button id="btn-maximize" title="Maximizar">
+          <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="1"/></svg>
+        </button>
+        <button id="btn-close" title="Fechar">✕</button>
+      </div>
+    </div>
+    <div id="main-content">
+    <aside id="sidebar">
+      <div id="logo">ADSneeker</div>
+      <button id="new-chat-btn">+ Novo chat</button>
+      <div id="quick-actions-label">Atalhos rápidos</div>
+      <nav id="quick-actions">
+        <button class="quick-action-btn" data-action="criar-conta">Criar conta do zero</button>
+        <button class="quick-action-btn" data-action="aquecimento">Protocolo de aquecimento</button>
+        <button class="quick-action-btn" data-action="estruturar">Estruturar campanha</button>
+        <button class="quick-action-btn" data-action="ban">Diagnóstico de ban</button>
+        <button class="quick-action-btn" data-action="copy">Revisar copy/criativo</button>
+        <button class="quick-action-btn" data-action="escalar">Escalar campanha</button>
+      </nav>
+      <div id="history-label">Conversas</div>
+      <nav id="chat-history-list"></nav>
+      <div id="sidebar-footer">
+        <div id="model-selector-label">Modelo</div>
+        <div id="model-dropdown">
+        <button id="model-dropdown-btn" aria-haspopup="listbox" aria-expanded="false">
+          <span id="model-dropdown-icon"></span>
+          <span id="model-dropdown-text">Gemini 2.5 Flash</span>
+          <svg id="model-dropdown-chevron" xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <ul id="model-dropdown-list" role="listbox">
+          <li role="option" data-value="gemini-2.5-flash" data-label="Gemini 2.5 Flash" data-badge="padrão">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><bolt/><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+            <span>Gemini 2.5 Flash</span><em>padrão</em>
+          </li>
+          <li role="option" data-value="gemini-2.5-pro" data-label="Gemini 2.5 Pro">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
+            <span>Gemini 2.5 Pro</span>
+          </li>
+          <li role="option" data-value="gemini-2.5-flash-lite" data-label="Gemini 2.5 Flash Lite">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+            <span>Gemini 2.5 Flash Lite</span>
+          </li>
+          <li role="option" data-value="gemini-3-flash-preview" data-label="Gemini 3.0 Flash" data-badge="novo">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+            <span>Gemini 3.0 Flash</span><em class="badge-new">novo</em>
+          </li>
+          <li role="option" data-value="gemini-3.1-pro-preview" data-label="Gemini 3.1 Pro" data-badge="novo">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+            <span>Gemini 3.1 Pro</span><em class="badge-new">novo</em>
+          </li>
+          <li role="option" data-value="gemini-3.1-flash-lite-preview" data-label="Gemini 3.1 Flash Lite">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+            <span>Gemini 3.1 Flash Lite</span>
+          </li>
+        </ul>
+      </div>
+      </div>
+    </aside>
+
+    <main id="chat-area">      <header id="platform-selector">
+        <button class="platform-chip active" data-platform="geral">Geral</button>
+        <button class="platform-chip" data-platform="meta">Meta</button>
+        <button class="platform-chip" data-platform="google">Google</button>
+        <button class="platform-chip" data-platform="tiktok">TikTok</button>
+      </header>
+
+      <div id="messages"></div>
+
+      <footer id="input-area">
+        <textarea
+          id="user-input"
+          placeholder="Pergunte sobre tráfego pago..."
+          rows="1"
+        ></textarea>
+        <button id="send-btn">Enviar</button>
+      </footer>
+    </main>
+    </div><!-- /main-content -->
+  </div><!-- /app -->
+
+  <script>
+    // ── Estado ──
+    let currentPlatform = 'geral'
+    let currentModel = localStorage.getItem('selectedModel') || 'gemini-2.5-flash'
+    let chatHistory = []
+    let currentChatId = null
+    let isStreaming = false
+
+    // ── Utilitários ──
+    function genId() {
+      return Date.now().toString(36) + Math.random().toString(36).slice(2, 7)
+    }
+
+    function titleFromMessage(text) {
+      return text.trim().slice(0, 40) + (text.trim().length > 40 ? '…' : '')
+    }
+
+    function timeAgo(dateStr) {
+      const diff = Date.now() - new Date(dateStr).getTime()
+      const m = Math.floor(diff / 60000)
+      if (m < 1) return 'agora'
+      if (m < 60) return `${m}min atrás`
+      const h = Math.floor(m / 60)
+      if (h < 24) return `${h}h atrás`
+      return `${Math.floor(h / 24)}d atrás`
+    }
+
+    // ── Prompts dos Quick Actions ──
+    const quickActionPrompts = {
+      'criar-conta': (p) => `Me guie passo a passo para criar uma conta de anúncios do zero${p !== 'geral' ? ` no ${p.charAt(0).toUpperCase() + p.slice(1)} Ads` : ' (explique para as principais plataformas)'}. Inclua estrutura recomendada, erros comuns e boas práticas.`,
+      'aquecimento': (p) => `Qual o protocolo completo de aquecimento para uma conta nova${p !== 'geral' ? ` no ${p.charAt(0).toUpperCase() + p.slice(1)} Ads` : ''}? Detalhe semana a semana com orçamentos, objetivos e sinais de alerta.`,
+      'estruturar': (p) => `Me ajude a estruturar uma campanha${p !== 'geral' ? ` no ${p.charAt(0).toUpperCase() + p.slice(1)} Ads` : ' de tráfego pago'}. Qual a hierarquia ideal, orçamento inicial e configurações recomendadas?`,
+      'ban': (p) => `Minha conta foi restrita ou banida${p !== 'geral' ? ` no ${p.charAt(0).toUpperCase() + p.slice(1)} Ads` : ''}. O que devo fazer? Quais os passos para recurso e como evitar no futuro?`,
+      'copy': (p) => `Quero revisar minha copy e criativo para${p !== 'geral' ? ` ${p.charAt(0).toUpperCase() + p.slice(1)} Ads` : ' tráfego pago'}. Quais são as melhores práticas, o que evitar para não reprovar e como aumentar o CTR?`,
+      'escalar': (p) => `Como escalar minha campanha${p !== 'geral' ? ` no ${p.charAt(0).toUpperCase() + p.slice(1)} Ads` : ''} sem quebrar o algoritmo? Explique escala vertical e horizontal com percentuais e timing corretos.`
+    }
+
+    // ── Renderização de Markdown ──
+    function renderMarkdown(text) {
+      const escape = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+
+      const inlineFormat = (s) => s
+        .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+        .replace(/\*(.+?)\*/g, '<em>$1</em>')
+        .replace(/`([^`]+)`/g, '<code>$1</code>')
+
+      const lines = text.split('\n')
+      let html = ''
+      let listStack = [] // { tag, indent }
+
+      const closeListsAbove = (indent) => {
+        while (listStack.length && listStack[listStack.length - 1].indent >= indent) {
+          html += `</${listStack.pop().tag}>`
+        }
+      }
+
+      const closeAllLists = () => {
+        while (listStack.length) html += `</${listStack.pop().tag}>`
+      }
+
+      for (const line of lines) {
+        // Separador — ignorado intencionalmente
+        if (/^---+$/.test(line.trim())) {
+          continue
+        }
+
+        // Headers
+        const h4 = line.match(/^#### (.+)/)
+        const h3 = line.match(/^### (.+)/)
+        const h2 = line.match(/^## (.+)/)
+        const h1 = line.match(/^# (.+)/)
+        if (h4) { closeAllLists(); html += `<h4>${inlineFormat(escape(h4[1]))}</h4>`; continue }
+        if (h3) { closeAllLists(); html += `<h3>${inlineFormat(escape(h3[1]))}</h3>`; continue }
+        if (h2) { closeAllLists(); html += `<h2>${inlineFormat(escape(h2[1]))}</h2>`; continue }
+        if (h1) { closeAllLists(); html += `<h1>${inlineFormat(escape(h1[1]))}</h1>`; continue }
+
+        // Lista ordenada (só nível raiz)
+        const olMatch = line.match(/^(\d+)\. (.+)/)
+        if (olMatch) {
+          closeAllLists()
+          html += '<ol>'
+          listStack.push({ tag: 'ol', indent: 0 })
+          html += `<li>${inlineFormat(escape(olMatch[2]))}</li>`
+          continue
+        }
+
+        // Lista não-ordenada com suporte a aninhamento por indentação
+        const ulMatch = line.match(/^(\s*)[*\-] (.+)/)
+        if (ulMatch) {
+          const indent = ulMatch[1].length
+          const content = ulMatch[2]
+
+          if (!listStack.length) {
+            html += '<ul>'
+            listStack.push({ tag: 'ul', indent })
+          } else {
+            const top = listStack[listStack.length - 1]
+            if (indent > top.indent) {
+              // Abre sub-lista dentro do último <li>
+              // Remove o </li> que acabou de ser adicionado para injetar a sub-lista dentro
+              if (html.endsWith('</li>')) html = html.slice(0, -5)
+              html += '<ul>'
+              listStack.push({ tag: 'ul', indent })
+            } else if (indent < top.indent) {
+              closeListsAbove(indent)
+              // Fecha o </li> do item pai e reabre
+              if (!html.endsWith('</li>')) html += '</li>'
+            }
+          }
+
+          html += `<li>${inlineFormat(escape(content))}</li>`
+          continue
+        }
+
+        // Linha vazia
+        if (line.trim() === '') {
+          closeAllLists(); html += '<br>'; continue
+        }
+
+        // Parágrafo
+        closeAllLists()
+        html += `<p>${inlineFormat(escape(line))}</p>`
+      }
+
+      closeAllLists()
+      return html
+    }
+
+    // ── Adiciona mensagem na tela ──
+    function addMessage(role, content) {
+      const messagesEl = document.getElementById('messages')
+      const div = document.createElement('div')
+      div.className = `message ${role}`
+      const bubble = document.createElement('div')
+      bubble.className = 'message-bubble'
+      if (role === 'agent') {
+        bubble.innerHTML = renderMarkdown(content)
+      } else {
+        bubble.textContent = content
+      }
+      div.appendChild(bubble)
+      messagesEl.appendChild(div)
+      messagesEl.scrollTop = messagesEl.scrollHeight
+      return bubble
+    }
+
+    // ── Indicador de digitação ──
+    function showTyping() {
+      const messagesEl = document.getElementById('messages')
+      const div = document.createElement('div')
+      div.className = 'message agent'
+      div.id = 'typing-indicator'
+      div.innerHTML = '<div class="message-bubble typing-indicator"><span></span><span></span><span></span></div>'
+      messagesEl.appendChild(div)
+      messagesEl.scrollTop = messagesEl.scrollHeight
+    }
+
+    function hideTyping() {
+      const el = document.getElementById('typing-indicator')
+      if (el) el.remove()
+    }
+
+    // ── Gerenciamento de chats ──
+    async function renderChatList() {
+      const list = document.getElementById('chat-history-list')
+      const chats = await window.api.listChats()
+      list.innerHTML = ''
+      if (chats.length === 0) {
+        list.innerHTML = `
+          <div class="chat-history-empty">
+            <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+            <span>Nenhuma conversa ainda</span>
+          </div>`
+        return
+      }
+      for (const chat of chats) {
+        const item = document.createElement('div')
+        item.className = 'chat-history-item' + (chat.id === currentChatId ? ' active' : '')
+        item.dataset.id = chat.id
+        item.innerHTML = `
+          <span class="chat-history-title">${chat.title}</span>
+          <span class="chat-history-time">${timeAgo(chat.updatedAt)}</span>
+          <button class="chat-delete-btn" data-id="${chat.id}" title="Deletar">
+            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+          </button>`
+        item.addEventListener('click', (e) => {
+          if (e.target.closest('.chat-delete-btn')) return
+          loadChat(chat.id)
+        })
+        item.querySelector('.chat-delete-btn').addEventListener('click', async (e) => {
+          e.stopPropagation()
+          await window.api.deleteChat(chat.id)
+          if (currentChatId === chat.id) startNewChat()
+          else renderChatList()
+        })
+        list.appendChild(item)
+      }
+    }
+
+    async function loadChat(id) {
+      const chat = await window.api.loadChat(id)
+      if (!chat) return
+      currentChatId = id
+      chatHistory = chat.messages
+      document.getElementById('messages').innerHTML = ''
+      for (const entry of chat.messages) {
+        addMessage(entry.role === 'model' ? 'agent' : 'user', entry.content)
+      }
+      renderChatList()
+    }
+
+    function startNewChat() {
+      currentChatId = null
+      chatHistory = []
+      document.getElementById('messages').innerHTML = ''
+      renderChatList()
+    }
+
+    // ── Envio de mensagem ──
+    async function sendMessage(text) {
+      if (isStreaming || !text.trim()) return
+      isStreaming = true
+
+      const input = document.getElementById('user-input')
+      const sendBtn = document.getElementById('send-btn')
+      input.value = ''
+      input.style.height = 'auto'
+      sendBtn.disabled = true
+
+      // Cria novo chat se não existir
+      if (!currentChatId) {
+        currentChatId = genId()
+      }
+
+      addMessage('user', text)
+      showTyping()
+
+      const messagesEl = document.getElementById('messages')
+      let agentBubble = null
+      let agentDiv = null
+      let fullResponse = ''
+
+      window.api.removeStreamListeners()
+
+      const streamDone = new Promise((resolve) => {
+        window.api.onStreamChunk((chunk) => {
+          if (chunk === '__DONE__') { resolve(); return }
+          hideTyping()
+          if (!agentDiv) {
+            agentDiv = document.createElement('div')
+            agentDiv.className = 'message agent'
+            agentBubble = document.createElement('div')
+            agentBubble.className = 'message-bubble'
+            agentDiv.appendChild(agentBubble)
+            messagesEl.appendChild(agentDiv)
+          }
+          fullResponse += chunk
+          agentBubble.innerHTML = renderMarkdown(fullResponse)
+          messagesEl.scrollTop = messagesEl.scrollHeight
+        })
+      })
+
+      try {
+        const result = await window.api.sendMessage({
+          message: text,
+          history: chatHistory,
+          platform: currentPlatform,
+          model: currentModel
+        })
+
+        if (result && result.startsWith && result.startsWith('Erro')) {
+          hideTyping()
+          addMessage('agent', result)
+        } else {
+          await streamDone
+          chatHistory.push({ role: 'user', content: text })
+          chatHistory.push({ role: 'model', content: fullResponse })
+
+          // Salva o chat com título gerado da primeira mensagem
+          const isFirst = chatHistory.length === 2
+          await window.api.saveChat({
+            id: currentChatId,
+            title: isFirst ? titleFromMessage(text) : (await window.api.loadChat(currentChatId))?.title || titleFromMessage(text),
+            updatedAt: new Date().toISOString(),
+            messages: chatHistory
+          })
+          renderChatList()
+        }
+      } catch (err) {
+        hideTyping()
+        console.error('[renderer] Erro no sendMessage:', err)
+        addMessage('agent', `Erro: ${err.message}`)
+      }
+
+      isStreaming = false
+      sendBtn.disabled = false
+      input.focus()
+    }
+
+    // ── Inicialização ──
+    async function init() {
+      await renderChatList()
+
+      // Controles da janela
+      document.getElementById('btn-minimize').addEventListener('click', () => window.api.minimizeWindow())
+      document.getElementById('btn-maximize').addEventListener('click', () => window.api.maximizeWindow())
+      document.getElementById('btn-close').addEventListener('click', () => window.api.closeWindow())
+
+      // Platform chips
+      document.querySelectorAll('.platform-chip').forEach(chip => {
+        chip.addEventListener('click', () => {
+          document.querySelectorAll('.platform-chip').forEach(c => c.classList.remove('active'))
+          chip.classList.add('active')
+          currentPlatform = chip.dataset.platform
+        })
+      })
+
+      // Quick actions
+      document.querySelectorAll('.quick-action-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const prompt = quickActionPrompts[btn.dataset.action]
+          if (prompt) sendMessage(prompt(currentPlatform))
+        })
+      })
+
+      // Model dropdown
+      const dropdownBtn = document.getElementById('model-dropdown-btn')
+      const dropdownList = document.getElementById('model-dropdown-list')
+      const dropdownText = document.getElementById('model-dropdown-text')
+
+      function setModel(value, label) {
+        currentModel = value
+        localStorage.setItem('selectedModel', value)
+        dropdownText.textContent = label
+        dropdownList.querySelectorAll('li').forEach(li => {
+          li.classList.toggle('selected', li.dataset.value === value)
+        })
+      }
+
+      const savedModel = localStorage.getItem('selectedModel') || 'gemini-2.5-flash'
+      const savedItem = dropdownList.querySelector(`[data-value="${savedModel}"]`)
+      if (savedItem) setModel(savedModel, savedItem.dataset.label)
+
+      dropdownBtn.addEventListener('click', (e) => {
+        e.stopPropagation()
+        const open = dropdownList.classList.toggle('open')
+        dropdownBtn.setAttribute('aria-expanded', open)
+      })
+
+      dropdownList.querySelectorAll('li').forEach(li => {
+        li.addEventListener('click', () => {
+          setModel(li.dataset.value, li.dataset.label)
+          dropdownList.classList.remove('open')
+          dropdownBtn.setAttribute('aria-expanded', false)
+        })
+      })
+
+      document.addEventListener('click', () => {
+        dropdownList.classList.remove('open')
+        dropdownBtn.setAttribute('aria-expanded', false)
+      })
+
+      // Novo chat
+      document.getElementById('new-chat-btn').addEventListener('click', () => startNewChat())
+
+      // Input
+      const input = document.getElementById('user-input')
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+          e.preventDefault()
+          sendMessage(input.value)
+        }
+      })
+      input.addEventListener('input', () => {
+        input.style.height = 'auto'
+        input.style.height = Math.min(input.scrollHeight, 120) + 'px'
+      })
+      document.getElementById('send-btn').addEventListener('click', () => sendMessage(input.value))
+    }
+
+    init()
+  </script>
+</body>
+</html>
