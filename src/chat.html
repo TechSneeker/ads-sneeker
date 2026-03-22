@@ -34,8 +34,7 @@
       <div id="history-label">Conversas</div>
       <nav id="chat-history-list"></nav>
       <div id="sidebar-footer">
-        <div id="model-selector-label">Modelo</div>
-        <div id="model-dropdown">
+        <div id="model-selector-label">Modelo</div>        <div id="model-dropdown">
         <button id="model-dropdown-btn" aria-haspopup="listbox" aria-expanded="false">
           <span id="model-dropdown-icon"></span>
           <span id="model-dropdown-text">Gemini 2.5 Flash</span>
@@ -68,6 +67,12 @@
           </li>
         </ul>
       </div>
+      <div id="sidebar-footer-top">
+        <button id="usage-dashboard-btn" title="Dashboard de uso">
+          <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="6" height="18"/><rect x="9" y="8" width="6" height="13"/><rect x="16" y="13" width="6" height="8"/></svg>
+          <span id="usage-cost-preview">R$ 0,00</span>
+        </button>
+      </div>
       </div>
     </aside>
 
@@ -77,6 +82,14 @@
         <button class="platform-chip" data-platform="google">Google</button>
         <button class="platform-chip" data-platform="tiktok">TikTok</button>
       </header>
+
+      <div id="operation-bar">
+        <span id="operation-label">Operação:</span>
+        <div id="operation-chips"></div>
+        <button id="manage-operations-btn" title="Gerenciar operações">
+          <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2"/></svg>
+        </button>
+      </div>
 
       <div id="messages"></div>
 
@@ -91,6 +104,50 @@
     </main>
     </div><!-- /main-content -->
   </div><!-- /app -->
+
+  <!-- Modal de Usage Dashboard -->
+  <div id="usage-modal" class="modal-overlay" style="display:none">
+    <div class="modal-box modal-box-lg">
+      <div class="modal-header">
+        <span class="modal-title">Dashboard de Uso</span>
+        <div style="display:flex;gap:8px;align-items:center">
+          <button id="clear-usage-btn" class="btn-ghost btn-sm">Limpar histórico</button>
+          <button id="close-usage-modal" class="modal-close">✕</button>
+        </div>
+      </div>
+      <div class="modal-body">
+        <div id="usage-stats-grid"></div>
+        <div id="usage-chart-section">
+          <div class="usage-section-title">Custo por sessão (últimas 30)</div>
+          <div id="usage-chart"></div>
+        </div>
+        <div id="usage-by-model-section">
+          <div class="usage-section-title">Uso por modelo</div>
+          <div id="usage-by-model"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal de Operações -->
+  <div id="operations-modal" class="modal-overlay" style="display:none">    <div class="modal-box">
+      <div class="modal-header">
+        <span class="modal-title">Operações</span>
+        <button id="close-operations-modal" class="modal-close">✕</button>
+      </div>
+      <div class="modal-body">
+        <div id="operations-list"></div>
+        <div class="modal-form" id="operation-form">
+          <input id="op-name-input" type="text" placeholder="Nome da operação (ex: iGaming BR)" maxlength="40" />
+          <textarea id="op-content-input" placeholder="Descreva a operação: nicho, produto, público-alvo, restrições, estratégias específicas, informações relevantes..."></textarea>
+          <div class="modal-form-actions">
+            <button id="cancel-op-btn" class="btn-ghost" style="display:none">Cancelar</button>
+            <button id="save-op-btn" class="btn-primary">Salvar operação</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <script>
     // ── Estado ──
@@ -359,6 +416,7 @@
           message: text,
           history: chatHistory,
           platform: currentPlatform,
+          operation: currentOperation,
           model: currentModel
         })
 
@@ -369,6 +427,7 @@
           await streamDone
           chatHistory.push({ role: 'user', content: text })
           chatHistory.push({ role: 'model', content: fullResponse })
+          await updateUsagePreview()
 
           // Salva o chat com título gerado da primeira mensagem
           const isFirst = chatHistory.length === 2
@@ -391,9 +450,233 @@
       input.focus()
     }
 
+    // ── Usage Dashboard ──
+    const USD_BRL = 5.75 // taxa aproximada
+
+    function formatBRL(usd) {
+      return (usd * USD_BRL).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+    }
+
+    function formatNum(n) {
+      return n.toLocaleString('pt-BR')
+    }
+
+    async function updateUsagePreview() {
+      const usage = await window.api.getUsage()
+      const total = usage.sessions.reduce((s, r) => s + (r.costUSD || 0), 0)
+      document.getElementById('usage-cost-preview').textContent = formatBRL(total)
+    }
+
+    async function openUsageDashboard() {
+      const usage = await window.api.getUsage()
+      const sessions = usage.sessions || []
+
+      // Totais
+      const totalCostUSD   = sessions.reduce((s, r) => s + (r.costUSD || 0), 0)
+      const totalInput     = sessions.reduce((s, r) => s + (r.inputTokens || 0), 0)
+      const totalOutput    = sessions.reduce((s, r) => s + (r.outputTokens || 0), 0)
+      const totalCached    = sessions.reduce((s, r) => s + (r.cachedTokens || 0), 0)
+      const totalCalls     = sessions.length
+      const cachedCalls    = sessions.filter(s => s.usingCache).length
+      const billedInput    = totalInput - totalCached
+      const billedTotal    = billedInput + totalOutput
+
+      // Stats grid
+      document.getElementById('usage-stats-grid').innerHTML = `
+        <div class="stat-card">
+          <div class="stat-label">Custo total</div>
+          <div class="stat-value stat-green">${formatBRL(totalCostUSD)}</div>
+          <div class="stat-sub">≈ $${totalCostUSD.toFixed(4)} USD</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Tokens cobrados</div>
+          <div class="stat-value">${formatNum(billedTotal)}</div>
+          <div class="stat-sub">${formatNum(billedInput)} entrada · ${formatNum(totalOutput)} saída</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Tokens cacheados</div>
+          <div class="stat-value stat-green">${formatNum(totalCached)}</div>
+          <div class="stat-sub">não cobrados</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Chamadas à API</div>
+          <div class="stat-value">${formatNum(totalCalls)}</div>
+          <div class="stat-sub">${cachedCalls} com cache</div>
+        </div>`
+
+      // Gráfico de barras (últimas 30 sessões)
+      const last30 = sessions.slice(-30)
+      const maxCost = Math.max(...last30.map(s => s.costUSD || 0), 0.0001)
+      const chartEl = document.getElementById('usage-chart')
+      if (last30.length === 0) {
+        chartEl.innerHTML = '<div class="usage-empty">Nenhum dado ainda.</div>'
+      } else {
+        chartEl.innerHTML = last30.map((s, i) => {
+          const pct = ((s.costUSD || 0) / maxCost * 100).toFixed(1)
+          const date = new Date(s.ts).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
+          const time = new Date(s.ts).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+          return `<div class="chart-bar-wrap" title="${date} ${time} — ${formatBRL(s.costUSD || 0)}\n${s.model}">
+            <div class="chart-bar" style="height:${Math.max(pct, 2)}%"></div>
+          </div>`
+        }).join('')
+      }
+
+      // Por modelo
+      const byModel = {}
+      for (const s of sessions) {
+        const m = s.model || 'desconhecido'
+        if (!byModel[m]) byModel[m] = { calls: 0, costUSD: 0, input: 0, output: 0 }
+        byModel[m].calls++
+        byModel[m].costUSD += s.costUSD || 0
+        byModel[m].input   += s.inputTokens || 0
+        byModel[m].output  += s.outputTokens || 0
+      }
+
+      const modelEl = document.getElementById('usage-by-model')
+      const entries = Object.entries(byModel).sort((a, b) => b[1].costUSD - a[1].costUSD)
+      if (entries.length === 0) {
+        modelEl.innerHTML = '<div class="usage-empty">Nenhum dado ainda.</div>'
+      } else {
+        const maxModelCost = entries[0][1].costUSD || 0.0001
+        modelEl.innerHTML = entries.map(([name, d]) => `
+          <div class="model-row">
+            <div class="model-row-info">
+              <span class="model-row-name">${name}</span>
+              <span class="model-row-calls">${d.calls} chamadas</span>
+            </div>
+            <div class="model-row-bar-wrap">
+              <div class="model-row-bar" style="width:${(d.costUSD / maxModelCost * 100).toFixed(1)}%"></div>
+            </div>
+            <div class="model-row-cost">${formatBRL(d.costUSD)}</div>
+          </div>`).join('')
+      }
+
+      document.getElementById('usage-modal').style.display = 'flex'
+    }
+
+    // ── Operações ──
+    let currentOperation = null
+    let editingOpId = null
+
+    async function renderOperationChips() {
+      const ops = await window.api.listOperations()
+      const container = document.getElementById('operation-chips')
+      container.innerHTML = ''
+
+      const noneChip = document.createElement('button')
+      noneChip.className = 'op-chip' + (!currentOperation ? ' active' : '')
+      noneChip.textContent = 'Nenhuma'
+      noneChip.addEventListener('click', () => { currentOperation = null; renderOperationChips() })
+      container.appendChild(noneChip)
+
+      for (const op of ops) {
+        const chip = document.createElement('button')
+        chip.className = 'op-chip' + (currentOperation === op.id ? ' active' : '')
+        chip.textContent = op.name
+        chip.addEventListener('click', () => { currentOperation = op.id; renderOperationChips() })
+        container.appendChild(chip)
+      }
+    }
+
+    async function renderOperationsList() {
+      const ops = await window.api.listOperations()
+      const list = document.getElementById('operations-list')
+      list.innerHTML = ''
+
+      if (ops.length === 0) {
+        list.innerHTML = '<p class="ops-empty">Nenhuma operação criada ainda.</p>'
+        return
+      }
+
+      for (const op of ops) {
+        const item = document.createElement('div')
+        item.className = 'op-item'
+        item.innerHTML = `
+          <span class="op-item-name">${op.name}</span>
+          <div class="op-item-actions">
+            <button class="op-edit-btn" data-id="${op.id}" data-name="${op.name}" data-content="${encodeURIComponent(op.content)}">Editar</button>
+            <button class="op-delete-btn" data-id="${op.id}">Excluir</button>
+          </div>`
+        item.querySelector('.op-edit-btn').addEventListener('click', (e) => {
+          const btn = e.currentTarget
+          editingOpId = btn.dataset.id
+          document.getElementById('op-name-input').value = btn.dataset.name
+          document.getElementById('op-content-input').value = decodeURIComponent(btn.dataset.content)
+          document.getElementById('cancel-op-btn').style.display = 'inline-flex'
+          document.getElementById('save-op-btn').textContent = 'Atualizar operação'
+        })
+        item.querySelector('.op-delete-btn').addEventListener('click', async (e) => {
+          const id = e.currentTarget.dataset.id
+          await window.api.deleteOperation(id)
+          if (currentOperation === id) { currentOperation = null; renderOperationChips() }
+          renderOperationsList()
+        })
+        list.appendChild(item)
+      }
+    }
+
+    function openOperationsModal() {
+      editingOpId = null
+      document.getElementById('op-name-input').value = ''
+      document.getElementById('op-content-input').value = ''
+      document.getElementById('cancel-op-btn').style.display = 'none'
+      document.getElementById('save-op-btn').textContent = 'Salvar operação'
+      renderOperationsList()
+      document.getElementById('operations-modal').style.display = 'flex'
+    }
+
     // ── Inicialização ──
     async function init() {
       await renderChatList()
+      await renderOperationChips()
+      await updateUsagePreview()
+
+      // Dashboard de uso
+      document.getElementById('usage-dashboard-btn').addEventListener('click', openUsageDashboard)
+      document.getElementById('close-usage-modal').addEventListener('click', () => {
+        document.getElementById('usage-modal').style.display = 'none'
+      })
+      document.getElementById('usage-modal').addEventListener('click', (e) => {
+        if (e.target === document.getElementById('usage-modal')) document.getElementById('usage-modal').style.display = 'none'
+      })
+      document.getElementById('clear-usage-btn').addEventListener('click', async () => {
+        if (!confirm('Limpar todo o histórico de uso? Essa ação não pode ser desfeita.')) return
+        await window.api.clearUsage()
+        await updateUsagePreview()
+        openUsageDashboard()
+      })
+
+      // Modal de operações
+      document.getElementById('manage-operations-btn').addEventListener('click', openOperationsModal)
+      document.getElementById('close-operations-modal').addEventListener('click', () => {
+        document.getElementById('operations-modal').style.display = 'none'
+        renderOperationChips()
+      })
+      document.getElementById('operations-modal').addEventListener('click', (e) => {
+        if (e.target === document.getElementById('operations-modal')) {
+          document.getElementById('operations-modal').style.display = 'none'
+          renderOperationChips()
+        }
+      })
+      document.getElementById('save-op-btn').addEventListener('click', async () => {
+        const name = document.getElementById('op-name-input').value.trim()
+        const content = document.getElementById('op-content-input').value.trim()
+        if (!name || !content) return
+        await window.api.saveOperation({ id: editingOpId, name, content })
+        editingOpId = null
+        document.getElementById('op-name-input').value = ''
+        document.getElementById('op-content-input').value = ''
+        document.getElementById('cancel-op-btn').style.display = 'none'
+        document.getElementById('save-op-btn').textContent = 'Salvar operação'
+        renderOperationsList()
+      })
+      document.getElementById('cancel-op-btn').addEventListener('click', () => {
+        editingOpId = null
+        document.getElementById('op-name-input').value = ''
+        document.getElementById('op-content-input').value = ''
+        document.getElementById('cancel-op-btn').style.display = 'none'
+        document.getElementById('save-op-btn').textContent = 'Salvar operação'
+      })
 
       // Controles da janela
       document.getElementById('btn-minimize').addEventListener('click', () => window.api.minimizeWindow())

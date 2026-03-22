@@ -10,6 +10,14 @@ contextBridge.exposeInMainWorld('api', {
   loadChat: (id) => ipcRenderer.invoke('load-chat', id),
   saveChat: (chat) => ipcRenderer.invoke('save-chat', chat),
   deleteChat: (id) => ipcRenderer.invoke('delete-chat', id),
+  // Operações
+  listOperations: () => ipcRenderer.invoke('list-operations'),
+  saveOperation: (op) => ipcRenderer.invoke('save-operation', op),
+  deleteOperation: (id) => ipcRenderer.invoke('delete-operation', id),
+  getOperation: (id) => ipcRenderer.invoke('get-operation', id),
+  // Usage
+  getUsage: () => ipcRenderer.invoke('get-usage'),
+  clearUsage: () => ipcRenderer.invoke('clear-usage'),
   onStreamChunk: (callback) => ipcRenderer.on('stream-chunk', (_, chunk) => callback(chunk)),
   removeStreamListeners: () => ipcRenderer.removeAllListeners('stream-chunk'),
   minimizeWindow: () => ipcRenderer.invoke('window-minimize'),

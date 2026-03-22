@@ -6,7 +6,12 @@ node_modules/
 
 # Dados gerados em runtime
 data/history.json
+data/usage.json
+data/cache.json
 data/chats/
+
+# Arquivos de trabalho local
+tiktokads.txt
 
 # Build do Electron
 dist/

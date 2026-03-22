@@ -60,10 +60,21 @@ ipcMain.handle('window-maximize', () => {
 ipcMain.handle('window-close', () => mainWindow.close())
 
 // IPC: envia mensagem ao agente com streaming
-ipcMain.handle('send-message', async (event, { message, history, platform, model }) => {
+const usageFile = path.join(__dirname, '../data/usage.json')
+
+function loadUsage() {
+  try { return JSON.parse(fs.readFileSync(usageFile, 'utf-8')) } catch { return { sessions: [] } }
+}
+
+function saveUsage(data) {
+  fs.mkdirSync(path.dirname(usageFile), { recursive: true })
+  fs.writeFileSync(usageFile, JSON.stringify(data, null, 2), 'utf-8')
+}
+
+ipcMain.handle('send-message', async (event, { message, history, platform, operation, model }) => {
   const agent = require('./agent')
   try {
-    const result = await agent.chat(message, history, platform, model, (chunk) => {
+    const result = await agent.chat(message, history, platform, operation, model, (chunk) => {
       if (mainWindow && !mainWindow.isDestroyed()) {
         mainWindow.webContents.send('stream-chunk', chunk)
       }
@@ -72,7 +83,23 @@ ipcMain.handle('send-message', async (event, { message, history, platform, model
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send('stream-chunk', '__DONE__')
     }
-    return result
+
+    // Persiste usage
+    if (result.usage) {
+      const usage = loadUsage()
+      usage.sessions.push({
+        ts: new Date().toISOString(),
+        model: result.usage.modelId,
+        inputTokens: result.usage.inputTokens,
+        outputTokens: result.usage.outputTokens,
+        cachedTokens: result.usage.cachedTokens || 0,
+        costUSD: result.usage.costUSD,
+        usingCache: result.usage.usingCache || false
+      })
+      saveUsage(usage)
+    }
+
+    return result.text
   } catch (err) {
     console.error('[main] Erro no send-message:', err)
     if (mainWindow && !mainWindow.isDestroyed()) {
@@ -81,6 +108,9 @@ ipcMain.handle('send-message', async (event, { message, history, platform, model
     return `Erro ao chamar a API: ${err.message}`
   }
 })
+
+ipcMain.handle('get-usage', async () => loadUsage())
+ipcMain.handle('clear-usage', async () => { saveUsage({ sessions: [] }); return true })
 
 // IPC: carrega histórico do disco (legado — mantido por compatibilidade)
 ipcMain.handle('load-history', async () => {
@@ -133,4 +163,42 @@ ipcMain.handle('delete-chat', async (event, id) => {
   const file = path.join(chatsDir, `${id}.json`)
   if (fs.existsSync(file)) fs.unlinkSync(file)
   return true
+})
+
+// ── Operações ──
+const operationsDir = path.join(__dirname, '../knowledge/operations')
+
+function ensureOperationsDir() {
+  fs.mkdirSync(operationsDir, { recursive: true })
+}
+
+ipcMain.handle('list-operations', async () => {
+  ensureOperationsDir()
+  const files = fs.readdirSync(operationsDir).filter(f => f.endsWith('.md'))
+  return files.map(f => {
+    const id = f.replace('.md', '')
+    const content = fs.readFileSync(path.join(operationsDir, f), 'utf-8')
+    const nameMatch = content.match(/^# (.+)/)
+    return { id, name: nameMatch ? nameMatch[1] : id, content }
+  })
+})
+
+ipcMain.handle('save-operation', async (event, { id, name, content }) => {
+  ensureOperationsDir()
+  const safeId = id || name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
+  const header = content.startsWith('#') ? content : `# ${name}\n\n${content}`
+  fs.writeFileSync(path.join(operationsDir, `${safeId}.md`), header, 'utf-8')
+  return safeId
+})
+
+ipcMain.handle('delete-operation', async (event, id) => {
+  const file = path.join(operationsDir, `${id}.md`)
+  if (fs.existsSync(file)) fs.unlinkSync(file)
+  return true
+})
+
+ipcMain.handle('get-operation', async (event, id) => {
+  const file = path.join(operationsDir, `${id}.md`)
+  if (!fs.existsSync(file)) return null
+  return fs.readFileSync(file, 'utf-8')
 })
