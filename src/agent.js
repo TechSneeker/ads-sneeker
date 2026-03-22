@@ -56,7 +56,7 @@ function loadSystemPrompt() {
 
 function loadStaticKnowledge() {
   const dir = path.join(__dirname, '../knowledge')
-  const files = ['playbooks.md', 'warmup.md', 'meta.md', 'google.md', 'tiktok.md']
+  const files = ['playbooks.md', 'warmup.md', 'meta.md', 'google.md', 'tiktok.md', 'copywriting.md', 'tracking.md']
   let ctx = ''
   // compliance geral (nichos de risco, documentação) — sempre no cache
   const geralCompliance = path.join(dir, 'compliance/geral.md')
