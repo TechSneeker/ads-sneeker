@@ -5,17 +5,30 @@ const path = require('path')
 const fs = require('fs')
 
 let mainWindow
+let loginWindow
+
+function createLoginWindow() {
+  loginWindow = new BrowserWindow({
+    width: 1336,
+    height: 768,
+    minWidth: 1336,
+    minHeight: 768,
+    maxWidth: 1336,
+    maxHeight: 768,
+    title: 'ADSneeker',
+    resizable: false,
+    frame: false,
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false
+    },
+    backgroundColor: '#0f0f0f'
+  })
+  loginWindow.loadFile(path.join(__dirname, 'login.html'))
+}
 
 function createWindow() {
-  if (!process.env.GEMINI_API_KEY) {
-    dialog.showErrorBox(
-      'Chave da API não encontrada',
-      'Configure GEMINI_API_KEY no arquivo .env antes de iniciar o app.'
-    )
-    app.quit()
-    return
-  }
-
   mainWindow = new BrowserWindow({
     width: 1100,
     height: 780,
@@ -41,9 +54,9 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
-  createWindow()
+  createLoginWindow()
   app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow()
+    if (BrowserWindow.getAllWindows().length === 0) createLoginWindow()
   })
 })
 
@@ -51,13 +64,51 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit()
 })
 
-// IPC: controles da janela
-ipcMain.handle('window-minimize', () => mainWindow.minimize())
-ipcMain.handle('window-maximize', () => {
-  if (mainWindow.isMaximized()) mainWindow.unmaximize()
-  else mainWindow.maximize()
+// IPC: versão
+ipcMain.handle('get-version', () => {
+  return require('./config').getVersion()
 })
-ipcMain.handle('window-close', () => mainWindow.close())
+
+// IPC: controles da janela
+ipcMain.handle('window-minimize', () => {
+  const win = mainWindow || loginWindow
+  if (win) win.minimize()
+})
+ipcMain.handle('window-maximize', () => {
+  if (mainWindow) {
+    if (mainWindow.isMaximized()) mainWindow.unmaximize()
+    else mainWindow.maximize()
+  }
+})
+ipcMain.handle('window-close', () => {
+  const win = mainWindow || loginWindow
+  if (win) win.close()
+})
+
+// IPC: auth
+ipcMain.handle('auth-action', async (event, { mode, email, password }) => {
+  const auth = require('./auth')
+  const db   = require('./db')
+  try {
+    const result = mode === 'register'
+      ? await auth.signUp(email, password)
+      : await auth.signIn(email, password)
+    if (!result.error && result.user) {
+      db.setSession(result.session, result.user.id)
+      // carrega chave Gemini do usuário em memória
+      db.getSettings().catch(() => {})
+    }
+    return result
+  } catch (err) {
+    return { error: err.message }
+  }
+})
+
+ipcMain.handle('open-main', async () => {
+  createWindow()
+  if (loginWindow && !loginWindow.isDestroyed()) loginWindow.close()
+  loginWindow = null
+})
 
 // IPC: envia mensagem ao agente com streaming
 const usageFile = path.join(__dirname, '../data/usage.json')
@@ -124,81 +175,49 @@ ipcMain.handle('save-history', async () => true)
 ipcMain.handle('clear-history', async () => true)
 
 // ── Chats múltiplos ──
-const chatsDir = path.join(__dirname, '../data/chats')
-
-function ensureChatsDir() {
-  fs.mkdirSync(chatsDir, { recursive: true })
-}
 
 // Lista todos os chats ordenados por data (mais recente primeiro)
 ipcMain.handle('list-chats', async () => {
-  ensureChatsDir()
-  const files = fs.readdirSync(chatsDir).filter(f => f.endsWith('.json'))
-  return files
-    .map(f => {
-      try { return JSON.parse(fs.readFileSync(path.join(chatsDir, f), 'utf-8')) } catch { return null }
-    })
-    .filter(Boolean)
-    .sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt))
-    .map(({ id, title, updatedAt }) => ({ id, title, updatedAt }))
+  try { return await require('./db').listChats() } catch { return [] }
 })
 
 // Carrega um chat pelo id
 ipcMain.handle('load-chat', async (event, id) => {
-  ensureChatsDir()
-  const file = path.join(chatsDir, `${id}.json`)
-  if (!fs.existsSync(file)) return null
-  return JSON.parse(fs.readFileSync(file, 'utf-8'))
+  try { return await require('./db').loadChat(id) } catch { return null }
 })
 
 // Salva/atualiza um chat
 ipcMain.handle('save-chat', async (event, chat) => {
-  ensureChatsDir()
-  fs.writeFileSync(path.join(chatsDir, `${chat.id}.json`), JSON.stringify(chat, null, 2), 'utf-8')
-  return true
+  try { return await require('./db').saveChat(chat) } catch (err) { return { error: err.message } }
 })
 
 // Deleta um chat
 ipcMain.handle('delete-chat', async (event, id) => {
-  const file = path.join(chatsDir, `${id}.json`)
-  if (fs.existsSync(file)) fs.unlinkSync(file)
-  return true
+  try { return await require('./db').deleteChat(id) } catch { return false }
 })
 
-// ── Operações ──
-const operationsDir = path.join(__dirname, '../knowledge/operations')
-
-function ensureOperationsDir() {
-  fs.mkdirSync(operationsDir, { recursive: true })
-}
-
+// ── Operações (Supabase) ──
 ipcMain.handle('list-operations', async () => {
-  ensureOperationsDir()
-  const files = fs.readdirSync(operationsDir).filter(f => f.endsWith('.md'))
-  return files.map(f => {
-    const id = f.replace('.md', '')
-    const content = fs.readFileSync(path.join(operationsDir, f), 'utf-8')
-    const nameMatch = content.match(/^# (.+)/)
-    return { id, name: nameMatch ? nameMatch[1] : id, content }
-  })
+  try { return await require('./db').listOperations() } catch { return [] }
 })
 
-ipcMain.handle('save-operation', async (event, { id, name, content }) => {
-  ensureOperationsDir()
-  const safeId = id || name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
-  const header = content.startsWith('#') ? content : `# ${name}\n\n${content}`
-  fs.writeFileSync(path.join(operationsDir, `${safeId}.md`), header, 'utf-8')
-  return safeId
+ipcMain.handle('save-operation', async (event, op) => {
+  try { return await require('./db').saveOperation(op) } catch (err) { return { error: err.message } }
 })
 
 ipcMain.handle('delete-operation', async (event, id) => {
-  const file = path.join(operationsDir, `${id}.md`)
-  if (fs.existsSync(file)) fs.unlinkSync(file)
-  return true
+  try { return await require('./db').deleteOperation(id) } catch { return false }
 })
 
-ipcMain.handle('get-operation', async (event, id) => {
-  const file = path.join(operationsDir, `${id}.md`)
-  if (!fs.existsSync(file)) return null
-  return fs.readFileSync(file, 'utf-8')
+ipcMain.handle('get-operation', async (event, slug) => {
+  try { return await require('./db').getOperation(slug) } catch { return null }
+})
+
+// ── Configurações do usuário (Supabase) ──
+ipcMain.handle('get-settings', async () => {
+  try { return await require('./db').getSettings() } catch { return {} }
+})
+
+ipcMain.handle('save-settings', async (event, settings) => {
+  try { return await require('./db').saveSettings(settings) } catch (err) { return { error: err.message } }
 })

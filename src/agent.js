@@ -3,21 +3,41 @@ const { GoogleAICacheManager } = require('@google/generative-ai/server')
 const fs = require('fs')
 const path = require('path')
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
-const cacheManager = new GoogleAICacheManager(process.env.GEMINI_API_KEY)
+// Clientes por chave de API (cache em memória para não recriar a cada chamada)
+const clientCache = {}
 
-// Preços por 1M tokens em USD (input / output / cached_input)
+function getApiKey() {
+  try {
+    const db = require('./db')
+    const key = db.getUserGeminiKey()
+    if (key) return key
+  } catch (_) {}
+  return process.env.GEMINI_API_KEY
+}
+
+function getClients() {
+  const apiKey = getApiKey()
+  if (!clientCache[apiKey]) {
+    clientCache[apiKey] = {
+      genAI: new GoogleGenerativeAI(apiKey),
+      cacheManager: new GoogleAICacheManager(apiKey)
+    }
+  }
+  return clientCache[apiKey]
+}
+
+// Preços por 1M tokens em USD (input / output / cached_read / cache_storage por hora)
 const MODEL_PRICING = {
-  'gemini-2.5-flash':              { input: 0.15,   output: 1.25,  cached: 0.03  },
-  'gemini-2.5-pro':                { input: 0.625,  output: 5.00,  cached: 0.125 },
-  'gemini-2.5-flash-lite':         { input: 0.05,   output: 0.20,  cached: 0.01  },
-  'gemini-3-flash-preview':        { input: 0.25,   output: 1.50,  cached: 0.05  },
-  'gemini-3.1-pro-preview':        { input: 1.00,   output: 6.00,  cached: 0.20  },
-  'gemini-3.1-flash-lite-preview': { input: 0.125,  output: 0.75,  cached: 0.0125 },
+  'gemini-2.5-flash':              { input: 0.15,   output: 1.25,  cached: 0.03,   storage: 1.00  },
+  'gemini-2.5-pro':                { input: 0.625,  output: 5.00,  cached: 0.125,  storage: 4.50  },
+  'gemini-2.5-flash-lite':         { input: 0.05,   output: 0.20,  cached: 0.01,   storage: 0.25  },
+  'gemini-3-flash-preview':        { input: 0.25,   output: 1.50,  cached: 0.05,   storage: 1.00  },
+  'gemini-3.1-pro-preview':        { input: 1.00,   output: 6.00,  cached: 0.20,   storage: 4.50  },
+  'gemini-3.1-flash-lite-preview': { input: 0.125,  output: 0.75,  cached: 0.0125, storage: 0.25  },
 }
 
 function getPricing(modelId) {
-  return MODEL_PRICING[modelId] || { input: 0.15, output: 1.25, cached: 0.03 }
+  return MODEL_PRICING[modelId] || { input: 0.15, output: 1.25, cached: 0.03, storage: 1.00 }
 }
 
 function calcCostUSD(inputTokens, outputTokens, cachedTokens, modelId) {
@@ -26,6 +46,14 @@ function calcCostUSD(inputTokens, outputTokens, cachedTokens, modelId) {
   return (freshInput      / 1_000_000) * p.input
        + (cachedTokens    / 1_000_000) * p.cached
        + (outputTokens    / 1_000_000) * p.output
+}
+
+// Calcula custo de criação/storage do cache
+// TTL em horas, tokens = tamanho do cache
+function calcCacheStorageCostUSD(tokens, modelId, ttlSeconds) {
+  const p = getPricing(modelId)
+  const hours = ttlSeconds / 3600
+  return (tokens / 1_000_000) * p.storage * hours
 }
 
 const CACHE_TTL_SECONDS = 86400 // 24 horas
@@ -79,18 +107,11 @@ function loadPlatformCompliance(platform) {
   return `\n\n## COMPLIANCE DA PLATAFORMA ATIVA (${platform.toUpperCase()})\n` + fs.readFileSync(p, 'utf-8')
 }
 
-function loadOperationKnowledge(operation) {
-  if (!operation) return ''
-  const p = path.join(__dirname, '../knowledge/operations', `${operation}.md`)
-  if (!fs.existsSync(p)) return ''
-  return `\n\n## OPERAÇÃO ATIVA\n` + fs.readFileSync(p, 'utf-8')
-}
-
 async function getOrCreateCache(modelId) {
   const cached = cacheStore[modelId]
   if (cached && cached.expiresAt > Date.now()) {
     console.log('[cache] Reutilizando cache:', cached.name)
-    return cached.name
+    return { name: cached.name, isNew: false }
   }
 
   console.log('[cache] Criando novo cache para modelo:', modelId)
@@ -98,7 +119,8 @@ async function getOrCreateCache(modelId) {
   const staticKnowledge = loadStaticKnowledge()
   const fullContent = systemPrompt + '\n\n' + staticKnowledge
 
-  const result = await cacheManager.create({
+  const { cacheManager: cm } = getClients()
+  const result = await cm.create({
     model: modelId,
     contents: [{ role: 'user', parts: [{ text: fullContent }] },
                { role: 'model', parts: [{ text: 'Entendido. Estou pronto para responder sobre tráfego pago.' }] }],
@@ -107,12 +129,13 @@ async function getOrCreateCache(modelId) {
 
   cacheStore[modelId] = {
     name: result.name,
-    expiresAt: Date.now() + (CACHE_TTL_SECONDS - 60) * 1000
+    expiresAt: Date.now() + (CACHE_TTL_SECONDS - 60) * 1000,
+    tokenCount: result.usageMetadata?.totalTokenCount || 0
   }
   saveCacheStore(cacheStore)
 
-  console.log('[cache] Cache criado:', result.name)
-  return result.name
+  console.log('[cache] Cache criado:', result.name, '| tokens:', cacheStore[modelId].tokenCount)
+  return { name: result.name, isNew: true, tokenCount: cacheStore[modelId].tokenCount }
 }
 
 async function chat(userMessage, history, platform, operation, modelId, onChunk) {
@@ -121,20 +144,28 @@ async function chat(userMessage, history, platform, operation, modelId, onChunk)
 
   let model
   let usingCache = false
+  let cacheStorageCostUSD = 0
 
   try {
-    const cacheName = await getOrCreateCache(mid)
+    const { name: cacheName, isNew, tokenCount } = await getOrCreateCache(mid)
+    const { genAI, cacheManager } = getClients()
     const cachedContent = await cacheManager.get(cacheName)
     model = genAI.getGenerativeModelFromCachedContent(cachedContent, {
       generationConfig: { maxOutputTokens: 4096 }
     })
     usingCache = true
+    // Se o cache foi criado agora, contabiliza o custo de storage
+    if (isNew && tokenCount) {
+      cacheStorageCostUSD = calcCacheStorageCostUSD(tokenCount, mid, CACHE_TTL_SECONDS)
+      console.log(`[cache] Custo de storage: $${cacheStorageCostUSD.toFixed(6)}`)
+    }
     console.log('[cache] Modelo carregado com cache')
   } catch (err) {
     console.warn('[cache] Falha ao usar cache, usando modo normal:', err.message)
     const systemPrompt = loadSystemPrompt()
     const staticKnowledge = loadStaticKnowledge()
-    model = genAI.getGenerativeModel({
+    const { genAI: g } = getClients()
+    model = g.getGenerativeModel({
       model: mid,
       systemInstruction: { parts: [{ text: systemPrompt + '\n\n' + staticKnowledge }] },
       generationConfig: { maxOutputTokens: 4096 }
@@ -142,7 +173,19 @@ async function chat(userMessage, history, platform, operation, modelId, onChunk)
   }
 
   // Operação e compliance da plataforma são sempre dinâmicos (fora do cache)
-  const operationCtx = loadOperationKnowledge(operation)
+  let operationCtx = ''
+  if (operation) {
+    try {
+      const db = require('./db')
+      const op = await db.getOperationById(operation)
+      if (op && op.content) {
+        operationCtx = `\n\n## OPERAÇÃO ATIVA: ${op.name}\n${op.content}`
+      }
+    } catch (err) {
+      console.warn('[agent] Erro ao carregar operação:', err.message)
+    }
+  }
+  
   const platformCtx = loadPlatformCompliance(platform)
   const dynamicCtx = [platformCtx, operationCtx].filter(Boolean).join('\n\n')
   const finalMessage = dynamicCtx
@@ -171,9 +214,9 @@ async function chat(userMessage, history, platform, operation, modelId, onChunk)
   const inputTokens  = usageMeta?.promptTokenCount          || 0
   const outputTokens = usageMeta?.candidatesTokenCount      || 0
   const cachedTokens = usageMeta?.cachedContentTokenCount   || 0
-  const costUSD      = calcCostUSD(inputTokens, outputTokens, cachedTokens, mid)
+  const costUSD      = calcCostUSD(inputTokens, outputTokens, cachedTokens, mid) + cacheStorageCostUSD
 
-  console.log(`[agent] tokens: in=${inputTokens} cached=${cachedTokens} out=${outputTokens} cost=$${costUSD.toFixed(6)} cache=${usingCache}`)
+  console.log(`[agent] tokens: in=${inputTokens} cached=${cachedTokens} out=${outputTokens} storage=$${cacheStorageCostUSD.toFixed(6)} total=$${costUSD.toFixed(6)} cache=${usingCache}`)
 
   return {
     text: fullResponse,

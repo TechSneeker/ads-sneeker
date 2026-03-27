@@ -1,6 +1,10 @@
 const { contextBridge, ipcRenderer } = require('electron')
 
 contextBridge.exposeInMainWorld('api', {
+  // Auth
+  authAction: (payload) => ipcRenderer.invoke('auth-action', payload),
+  openMain: () => ipcRenderer.invoke('open-main'),
+  // Mensagens
   sendMessage: (payload) => ipcRenderer.invoke('send-message', payload),
   loadHistory: () => ipcRenderer.invoke('load-history'),
   saveHistory: (history) => ipcRenderer.invoke('save-history', history),
@@ -15,9 +19,14 @@ contextBridge.exposeInMainWorld('api', {
   saveOperation: (op) => ipcRenderer.invoke('save-operation', op),
   deleteOperation: (id) => ipcRenderer.invoke('delete-operation', id),
   getOperation: (id) => ipcRenderer.invoke('get-operation', id),
+  // Configurações
+  getSettings: () => ipcRenderer.invoke('get-settings'),
+  saveSettings: (s) => ipcRenderer.invoke('save-settings', s),
   // Usage
   getUsage: () => ipcRenderer.invoke('get-usage'),
   clearUsage: () => ipcRenderer.invoke('clear-usage'),
+  // Versão
+  getVersion: () => ipcRenderer.invoke('get-version'),
   onStreamChunk: (callback) => ipcRenderer.on('stream-chunk', (_, chunk) => callback(chunk)),
   removeStreamListeners: () => ipcRenderer.removeAllListeners('stream-chunk'),
   minimizeWindow: () => ipcRenderer.invoke('window-minimize'),

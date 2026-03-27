@@ -1,0 +1,831 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ADSneeker</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Inter', system-ui, sans-serif;
+      background: #050508;
+      color: #e5e5e5;
+      height: 100vh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── Titlebar ── */
+    #titlebar {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      height: 32px;
+      background: transparent;
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      padding: 0 8px;
+      -webkit-app-region: drag;
+      z-index: 1000;
+    }
+
+    #titlebar-controls {
+      display: flex;
+      gap: 4px;
+      -webkit-app-region: no-drag;
+    }
+
+    #titlebar-controls button {
+      background: rgba(255,255,255,0.05);
+      border: none;
+      color: #666;
+      font-size: 11px;
+      width: 28px;
+      height: 24px;
+      border-radius: 4px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.15s, color 0.15s;
+      font-family: inherit;
+    }
+
+    #titlebar-controls button:hover { background: rgba(255,255,255,0.1); color: #e5e5e5; }
+    #btn-close:hover { background: #c0392b !important; color: #fff !important; }
+
+    /* ── Canvas de fundo ── */
+    #bg-canvas {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+    }
+
+    /* ── Gradientes de fundo ── */
+    .bg-glow {
+      position: fixed;
+      border-radius: 50%;
+      filter: blur(120px);
+      pointer-events: none;
+      z-index: 1;
+    }
+
+    .bg-glow-1 {
+      width: 600px; height: 600px;
+      background: radial-gradient(circle, rgba(37, 99, 235, 0.12) 0%, transparent 70%);
+      top: -200px; left: -100px;
+      animation: drift1 20s ease-in-out infinite;
+    }
+
+    .bg-glow-2 {
+      width: 500px; height: 500px;
+      background: radial-gradient(circle, rgba(82, 192, 122, 0.07) 0%, transparent 70%);
+      bottom: -150px; right: -100px;
+      animation: drift2 25s ease-in-out infinite;
+    }
+
+    .bg-glow-3 {
+      width: 400px; height: 400px;
+      background: radial-gradient(circle, rgba(247, 147, 106, 0.06) 0%, transparent 70%);
+      top: 40%; left: 50%;
+      transform: translate(-50%, -50%);
+      animation: drift3 18s ease-in-out infinite;
+    }
+
+    @keyframes drift1 {
+      0%, 100% { transform: translate(0, 0); }
+      50% { transform: translate(60px, 40px); }
+    }
+    @keyframes drift2 {
+      0%, 100% { transform: translate(0, 0); }
+      50% { transform: translate(-40px, -60px); }
+    }
+    @keyframes drift3 {
+      0%, 100% { transform: translate(-50%, -50%) scale(1); }
+      50% { transform: translate(-50%, -50%) scale(1.2); }
+    }
+
+    /* ── Layout principal ── */
+    #scene {
+      position: relative;
+      z-index: 10;
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 60px 40px;
+    }
+
+    .login-container {
+      display: flex;
+      align-items: center;
+      gap: 80px;
+      width: 100%;
+      max-width: 960px;
+    }
+
+    /* ── Lado esquerdo — branding ── */
+    .brand-side {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    .brand-logo {
+      font-size: 42px;
+      font-weight: 700;
+      letter-spacing: -1.5px;
+      line-height: 1;
+      color: #fff;
+    }
+
+    .brand-logo span {
+      background: linear-gradient(135deg, #2563eb 0%, #60a5fa 50%, #93c5fd 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .brand-tagline {
+      font-size: 15px;
+      color: #555;
+      line-height: 1.6;
+      max-width: 280px;
+    }
+
+    .brand-features {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      margin-top: 8px;
+    }
+
+    .brand-feature {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 13px;
+      color: #444;
+    }
+
+    .brand-feature-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #2563eb;
+      flex-shrink: 0;
+      box-shadow: 0 0 8px rgba(37, 99, 235, 0.6);
+    }
+
+    /* ── Card de login ── */
+    .login-card {
+      width: 360px;
+      flex-shrink: 0;
+      background: rgba(12, 12, 18, 0.55);
+      backdrop-filter: blur(28px);
+      -webkit-backdrop-filter: blur(28px);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 20px;
+      padding: 36px 32px;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+      box-shadow: none;
+    }
+
+    .card-header {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .card-title {
+      font-size: 18px;
+      font-weight: 600;
+      color: #e5e5e5;
+    }
+
+    .card-subtitle {
+      font-size: 13px;
+      color: #444;
+    }
+
+    /* ── Tabs ── */
+    .login-tabs {
+      display: flex;
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.06);
+      border-radius: 10px;
+      padding: 3px;
+      gap: 2px;
+    }
+
+    .login-tab {
+      flex: 1;
+      background: transparent;
+      border: none;
+      color: #444;
+      font-size: 13px;
+      font-weight: 500;
+      padding: 8px 0;
+      border-radius: 7px;
+      cursor: pointer;
+      transition: all 0.2s;
+      font-family: inherit;
+    }
+
+    .login-tab.active {
+      background: rgba(37, 99, 235, 0.15);
+      color: #60a5fa;
+      box-shadow: 0 0 12px rgba(37, 99, 235, 0.1);
+    }
+
+    /* ── Campos ── */
+    .login-fields {
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+
+    .remember-label {
+      margin-top: -8px;
+    }
+
+    .login-field {
+      display: flex;
+      flex-direction: column;
+      gap: 7px;
+    }
+
+    .login-field label {
+      font-size: 11px;
+      font-weight: 500;
+      color: #555;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+    }
+
+    .input-wrap {
+      position: relative;
+    }
+
+    .login-field input {
+      width: 100%;
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.07);
+      border-radius: 10px;
+      color: #e5e5e5;
+      font-size: 14px;
+      font-family: inherit;
+      padding: 11px 14px;
+      outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
+    }
+
+    #input-password { padding-right: 40px; }
+
+    .eye-btn {
+      position: absolute;
+      right: 10px;
+      top: 50%;
+      transform: translateY(-50%);
+      background: none;
+      border: none;
+      color: #444;
+      cursor: pointer;
+      padding: 4px;
+      display: flex;
+      align-items: center;
+      transition: color 0.15s;
+    }
+
+    .eye-btn:hover { color: #888; }
+
+    .login-field input:focus {
+      border-color: rgba(37, 99, 235, 0.5);
+      background: rgba(37, 99, 235, 0.04);
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.08);
+    }
+
+    .login-field input::placeholder { color: #2a2a2a; }
+
+    /* ── Botão ── */
+    .login-btn {
+      position: relative;
+      background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+      border: none;
+      border-radius: 10px;
+      color: #fff;
+      font-size: 14px;
+      font-weight: 600;
+      font-family: inherit;
+      padding: 12px;
+      cursor: pointer;
+      transition: opacity 0.2s, transform 0.15s, box-shadow 0.2s;
+      width: 100%;
+      letter-spacing: 0.2px;
+      box-shadow: 0 4px 20px rgba(37, 99, 235, 0.3);
+      overflow: hidden;
+    }
+
+    .login-btn::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(135deg, rgba(255,255,255,0.1) 0%, transparent 60%);
+      pointer-events: none;
+    }
+
+    .login-btn:hover:not(:disabled) {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 28px rgba(37, 99, 235, 0.45);
+    }
+
+    .login-btn:active:not(:disabled) { transform: translateY(0); }
+    .login-btn:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
+
+    /* ── Feedback ── */
+    .login-feedback {
+      font-size: 12px;
+      text-align: center;
+      min-height: 16px;
+      line-height: 1.4;
+    }
+
+    .login-feedback.error { color: #f87171; }
+    .login-feedback.success { color: #4ade80; }
+
+    /* ── Footer ── */
+    .card-footer {
+      font-size: 11px;
+      color: #2a2a2a;
+      text-align: center;
+    }
+
+    /* ── Loading spinner ── */
+    .spinner {
+      display: inline-block;
+      width: 14px;
+      height: 14px;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      vertical-align: middle;
+      margin-right: 6px;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Remember me ── */
+    .remember-label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .remember-label input[type="checkbox"] {
+      appearance: none;
+      -webkit-appearance: none;
+      width: 15px;
+      height: 15px;
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 4px;
+      background: rgba(255,255,255,0.03);
+      cursor: pointer;
+      flex-shrink: 0;
+      transition: background 0.15s, border-color 0.15s;
+      position: relative;
+    }
+
+    .remember-label input[type="checkbox"]:checked {
+      background: #2563eb;
+      border-color: #2563eb;
+    }
+
+    .remember-label input[type="checkbox"]:checked::after {
+      content: '';
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: 4px;
+      height: 7px;
+      border: 1.5px solid #fff;
+      border-top: none;
+      border-left: none;
+      transform: translate(-50%, -60%) rotate(45deg);
+    }
+
+    .remember-label span {
+      font-size: 12px;
+      color: #555;
+    }
+  </style>
+</head>
+<body>
+
+  <div id="titlebar">
+    <div id="titlebar-controls">
+      <button id="btn-minimize" title="Minimizar">─</button>
+      <button id="btn-close" title="Fechar">✕</button>
+    </div>
+  </div>
+
+  <!-- Glows de fundo -->
+  <div class="bg-glow bg-glow-1"></div>
+  <div class="bg-glow bg-glow-2"></div>
+  <div class="bg-glow bg-glow-3"></div>
+
+  <!-- Canvas de estrelas -->
+  <canvas id="bg-canvas"></canvas>
+
+  <div id="scene">
+    <div class="login-container">
+
+      <!-- Branding -->
+      <div class="brand-side">
+        <div class="brand-logo">AD<span>Sneeker</span></div>
+        <div class="brand-tagline">Seu especialista em tráfego pago. Meta, Google e TikTok Ads em um só lugar.</div>
+        <div class="brand-features">
+          <div class="brand-feature">
+            <div class="brand-feature-dot"></div>
+            <span>Estratégias de campanha com IA especializada</span>
+          </div>
+          <div class="brand-feature">
+            <div class="brand-feature-dot"></div>
+            <span>Compliance atualizado das três plataformas</span>
+          </div>
+          <div class="brand-feature">
+            <div class="brand-feature-dot"></div>
+            <span>Playbooks prontos para lançar e escalar</span>
+          </div>
+          <div class="brand-feature">
+            <div class="brand-feature-dot"></div>
+            <span>Contexto de operação para respostas precisas</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Card -->
+      <div class="login-card">
+        <div class="card-header">
+          <div class="card-title" id="card-title">Bem-vindo de volta</div>
+          <div class="card-subtitle" id="card-subtitle">Entre na sua conta para continuar</div>
+        </div>
+
+        <div class="login-tabs">
+          <button class="login-tab active" id="tab-login">Entrar</button>
+          <button class="login-tab" id="tab-register">Criar conta</button>
+        </div>
+
+        <div class="login-fields">
+          <div class="login-field">
+            <label>E-mail</label>
+            <div class="input-wrap">
+              <input type="email" id="input-email" placeholder="seu@email.com" autocomplete="email" />
+            </div>
+          </div>
+          <div class="login-field">
+            <label>Senha</label>
+            <div class="input-wrap">
+              <input type="password" id="input-password" placeholder="••••••••" autocomplete="current-password" />
+              <button type="button" id="toggle-password" class="eye-btn" tabindex="-1">
+                <svg id="eye-icon" xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+              </button>
+            </div>
+          </div>
+          <label class="remember-label">
+            <input type="checkbox" id="remember-me" />
+            <span>Lembrar senha</span>
+          </label>
+        </div>
+
+        <div id="login-feedback" class="login-feedback"></div>
+
+        <button class="login-btn" id="login-submit-btn">Entrar</button>
+
+        <div class="card-footer" id="version-footer">ADSneeker v1.0.0</div>
+      </div>
+
+    </div>
+  </div>
+
+  <script>
+    // ── Carrega versão dinamicamente ──
+    async function loadVersion() {
+      try {
+        const version = await window.api.getVersion()
+        document.getElementById('version-footer').textContent = `ADSneeker v${version}`
+      } catch (err) {
+        console.warn('[login] Erro ao carregar versão:', err)
+      }
+    }
+    loadVersion()
+
+    // ── Titlebar ──
+    document.getElementById('btn-minimize').addEventListener('click', () => window.api.minimizeWindow())
+    document.getElementById('btn-close').addEventListener('click', () => window.api.closeWindow())
+
+    // ── Canvas — espaço com profundidade + estrelas cadentes ──
+    const canvas = document.getElementById('bg-canvas')
+    const ctx = canvas.getContext('2d')
+
+    let W, H
+    function resize() {
+      W = canvas.width = window.innerWidth
+      H = canvas.height = window.innerHeight
+    }
+    resize()
+    window.addEventListener('resize', resize)
+
+    // 3 camadas de profundidade: fundo (lento, pequeno), meio, frente (rápido, grande)
+    const layers = [
+      { count: 220, rMin: 0.2, rMax: 0.6,  alphaMax: 0.35, drift: 0.000025, parallax: 0.0 },
+      { count: 120, rMin: 0.5, rMax: 1.1,  alphaMax: 0.55, drift: 0.000045, parallax: 0.0 },
+      { count:  50, rMin: 0.9, rMax: 1.8,  alphaMax: 0.80, drift: 0.000080, parallax: 0.0 },
+    ]
+
+    const stars = []
+    layers.forEach((l, li) => {
+      for (let i = 0; i < l.count; i++) {
+        stars.push({
+          x: Math.random() * W,
+          y: Math.random() * H,
+          r: l.rMin + Math.random() * (l.rMax - l.rMin),
+          alpha: 0.1 + Math.random() * l.alphaMax,
+          twinkleSpeed: l.drift * (0.5 + Math.random()) * 0.15,
+          twinklePhase: Math.random() * Math.PI * 2,
+          layer: li,
+          // leve deriva horizontal para dar sensação de movimento
+          vx: (Math.random() - 0.5) * (li + 1) * 0.004,
+          vy: (Math.random() - 0.5) * (li + 1) * 0.002,
+        })
+      }
+    })
+
+    // Estrelas com glow azul
+    const glowStars = Array.from({ length: 14 }, () => ({
+      x: Math.random() * W,
+      y: Math.random() * H,
+      r: 1.2 + Math.random() * 1.4,
+      alpha: 0.15 + Math.random() * 0.35,
+      phase: Math.random() * Math.PI * 2,
+      speed: 0.00008 + Math.random() * 0.00015,
+    }))
+
+    // Nebulosa sutil no fundo
+    function drawNebula() {
+      const cx = W * 0.3, cy = H * 0.4
+      const g1 = ctx.createRadialGradient(cx, cy, 0, cx, cy, W * 0.45)
+      g1.addColorStop(0, 'rgba(37,99,235,0.04)')
+      g1.addColorStop(0.5, 'rgba(37,99,235,0.015)')
+      g1.addColorStop(1, 'transparent')
+      ctx.fillStyle = g1
+      ctx.fillRect(0, 0, W, H)
+
+      const cx2 = W * 0.75, cy2 = H * 0.65
+      const g2 = ctx.createRadialGradient(cx2, cy2, 0, cx2, cy2, W * 0.35)
+      g2.addColorStop(0, 'rgba(96,165,250,0.03)')
+      g2.addColorStop(1, 'transparent')
+      ctx.fillStyle = g2
+      ctx.fillRect(0, 0, W, H)
+    }
+
+    // ── Estrelas cadentes ──
+    const shootingStars = []
+
+    function spawnShootingStar() {
+      const angle = (15 + Math.random() * 25) * Math.PI / 180 // 15-40 graus
+      const speed = 6 + Math.random() * 8
+      const len   = 80 + Math.random() * 140
+      shootingStars.push({
+        x: Math.random() * W * 1.2 - W * 0.1,
+        y: Math.random() * H * 0.5,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
+        len,
+        alpha: 0,
+        maxAlpha: 0.6 + Math.random() * 0.4,
+        life: 0,
+        maxLife: 60 + Math.random() * 40,
+        r: 0.8 + Math.random() * 0.8,
+      })
+    }
+
+    // Spawna estrelas cadentes em intervalos aleatórios
+    let nextShoot = 80 + Math.random() * 120
+    let frameCount = 0
+
+    let t = 0
+    function draw() {
+      ctx.clearRect(0, 0, W, H)
+      t++
+      frameCount++
+
+      // Nebulosa
+      drawNebula()
+
+      // Estrelas normais — 3 camadas
+      for (const s of stars) {
+        // Deriva lenta
+        s.x += s.vx
+        s.y += s.vy
+        if (s.x < -2) s.x = W + 2
+        if (s.x > W + 2) s.x = -2
+        if (s.y < -2) s.y = H + 2
+        if (s.y > H + 2) s.y = -2
+
+        const twinkle = 0.4 + 0.6 * (0.5 + 0.5 * Math.sin(t * s.twinkleSpeed * 60 + s.twinklePhase))
+        const a = s.alpha * twinkle
+
+        // Camada de frente tem leve brilho
+        if (s.layer === 2 && s.r > 1.3) {
+          const g = ctx.createRadialGradient(s.x, s.y, 0, s.x, s.y, s.r * 4)
+          g.addColorStop(0, `rgba(200,220,255,${a * 0.3})`)
+          g.addColorStop(1, 'transparent')
+          ctx.fillStyle = g
+          ctx.beginPath()
+          ctx.arc(s.x, s.y, s.r * 4, 0, Math.PI * 2)
+          ctx.fill()
+        }
+
+        ctx.beginPath()
+        ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2)
+        ctx.fillStyle = `rgba(220,235,255,${a})`
+        ctx.fill()
+      }
+
+      // Estrelas com glow azul
+      for (const s of glowStars) {
+        const a = s.alpha * (0.5 + 0.5 * Math.sin(t * s.speed * 60 + s.phase))
+        const g = ctx.createRadialGradient(s.x, s.y, 0, s.x, s.y, s.r * 7)
+        g.addColorStop(0, `rgba(96,165,250,${a * 0.9})`)
+        g.addColorStop(0.4, `rgba(37,99,235,${a * 0.3})`)
+        g.addColorStop(1, 'transparent')
+        ctx.beginPath()
+        ctx.arc(s.x, s.y, s.r * 7, 0, Math.PI * 2)
+        ctx.fillStyle = g
+        ctx.fill()
+        ctx.beginPath()
+        ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2)
+        ctx.fillStyle = `rgba(210,230,255,${a})`
+        ctx.fill()
+      }
+
+      // Estrelas cadentes
+      if (frameCount >= nextShoot) {
+        spawnShootingStar()
+        nextShoot = frameCount + 90 + Math.random() * 180
+      }
+
+      for (let i = shootingStars.length - 1; i >= 0; i--) {
+        const s = shootingStars[i]
+        s.x += s.vx
+        s.y += s.vy
+        s.life++
+
+        // Fade in rápido, fade out suave
+        if (s.life < 8) s.alpha = (s.life / 8) * s.maxAlpha
+        else if (s.life > s.maxLife - 20) s.alpha = ((s.maxLife - s.life) / 20) * s.maxAlpha
+        else s.alpha = s.maxAlpha
+
+        if (s.life >= s.maxLife || s.x > W + 100 || s.y > H + 100) {
+          shootingStars.splice(i, 1)
+          continue
+        }
+
+        // Cauda com gradiente
+        const tailX = s.x - s.vx / Math.hypot(s.vx, s.vy) * s.len
+        const tailY = s.y - s.vy / Math.hypot(s.vx, s.vy) * s.len
+
+        const grad = ctx.createLinearGradient(tailX, tailY, s.x, s.y)
+        grad.addColorStop(0, 'transparent')
+        grad.addColorStop(0.6, `rgba(180,210,255,${s.alpha * 0.3})`)
+        grad.addColorStop(1, `rgba(220,235,255,${s.alpha})`)
+
+        ctx.beginPath()
+        ctx.moveTo(tailX, tailY)
+        ctx.lineTo(s.x, s.y)
+        ctx.strokeStyle = grad
+        ctx.lineWidth = s.r * 1.5
+        ctx.lineCap = 'round'
+        ctx.stroke()
+
+        // Ponta brilhante
+        const headGlow = ctx.createRadialGradient(s.x, s.y, 0, s.x, s.y, s.r * 5)
+        headGlow.addColorStop(0, `rgba(255,255,255,${s.alpha})`)
+        headGlow.addColorStop(0.3, `rgba(180,210,255,${s.alpha * 0.5})`)
+        headGlow.addColorStop(1, 'transparent')
+        ctx.beginPath()
+        ctx.arc(s.x, s.y, s.r * 5, 0, Math.PI * 2)
+        ctx.fillStyle = headGlow
+        ctx.fill()
+      }
+
+      requestAnimationFrame(draw)
+    }
+    draw()
+
+    // ── Tabs ──
+    let mode = 'login'
+    const tabLogin = document.getElementById('tab-login')
+    const tabRegister = document.getElementById('tab-register')
+    const submitBtn = document.getElementById('login-submit-btn')
+    const feedback = document.getElementById('login-feedback')
+    const cardTitle = document.getElementById('card-title')
+    const cardSubtitle = document.getElementById('card-subtitle')
+
+    tabLogin.addEventListener('click', () => {
+      mode = 'login'
+      tabLogin.classList.add('active')
+      tabRegister.classList.remove('active')
+      submitBtn.textContent = 'Entrar'
+      cardTitle.textContent = 'Bem-vindo de volta'
+      cardSubtitle.textContent = 'Entre na sua conta para continuar'
+      feedback.textContent = ''
+      feedback.className = 'login-feedback'
+    })
+
+    tabRegister.addEventListener('click', () => {
+      mode = 'register'
+      tabRegister.classList.add('active')
+      tabLogin.classList.remove('active')
+      submitBtn.textContent = 'Criar conta'
+      cardTitle.textContent = 'Criar conta'
+      cardSubtitle.textContent = 'Comece a usar o ADSneeker agora'
+      feedback.textContent = ''
+      feedback.className = 'login-feedback'
+    })
+
+    // ── Toggle senha ──
+    document.getElementById('toggle-password').addEventListener('click', () => {
+      const input = document.getElementById('input-password')
+      const icon  = document.getElementById('eye-icon')
+      const show  = input.type === 'password'
+      input.type  = show ? 'text' : 'password'
+      icon.innerHTML = show
+        ? '<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/>'
+        : '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>'
+    })
+
+    // ── Remember me — carrega credenciais salvas ──
+    const rememberCheck = document.getElementById('remember-me')
+    const savedEmail = localStorage.getItem('remember_email')
+    const savedPass  = localStorage.getItem('remember_pass')
+    if (savedEmail) {
+      document.getElementById('input-email').value = savedEmail
+      document.getElementById('input-password').value = savedPass || ''
+      rememberCheck.checked = true
+    }
+
+    // ── Submit ──
+    submitBtn.addEventListener('click', async () => {
+      const email = document.getElementById('input-email').value.trim()
+      const password = document.getElementById('input-password').value
+
+      if (!email || !password) {
+        feedback.className = 'login-feedback error'
+        feedback.textContent = 'Preencha e-mail e senha.'
+        return
+      }
+
+      submitBtn.disabled = true
+      submitBtn.innerHTML = '<span class="spinner"></span>' + (mode === 'login' ? 'Entrando...' : 'Criando conta...')
+      feedback.textContent = ''
+
+      const result = await window.api.authAction({ mode, email, password })
+
+      submitBtn.disabled = false
+      submitBtn.textContent = mode === 'login' ? 'Entrar' : 'Criar conta'
+
+      if (result.error) {
+        feedback.className = 'login-feedback error'
+        feedback.textContent = result.error
+      } else if (mode === 'register') {
+        feedback.className = 'login-feedback success'
+        feedback.textContent = 'Conta criada! Verifique seu e-mail para confirmar.'
+      } else {
+        if (rememberCheck.checked) {
+          localStorage.setItem('remember_email', email)
+          localStorage.setItem('remember_pass', password)
+        } else {
+          localStorage.removeItem('remember_email')
+          localStorage.removeItem('remember_pass')
+        }
+        window.api.openMain()
+      }
+    })
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') submitBtn.click()
+    })
+  </script>
+</body>
+</html>
